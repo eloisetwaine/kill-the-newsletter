@@ -311,7 +311,6 @@ application.database = await new Database(
     create index "index_feedEntryEnclosureLinks_feedEntryEnclosure" on "feedEntryEnclosureLinks" ("feedEntryEnclosure");
   `,
 );
-
 if (application.commandLineArguments.values.type === "backgroundJob")
   node.backgroundJob({ interval: 60 * 60 * 1000 }, async () => {
     for (const feedEntryEnclosure of application.database.all<{
