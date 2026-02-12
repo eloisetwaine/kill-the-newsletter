@@ -312,6 +312,79 @@ application.database = await new Database(
   `,
 );
 
+if (application.commandLineArguments.values.type === undefined) {
+  for (const port of application.privateConfiguration.ports) {
+    node.childProcessKeepAlive(() =>
+      childProcess.spawn(
+        process.argv[0],
+        [
+          "--enable-source-maps",
+          process.argv[1],
+          ...application.commandLineArguments.positionals,
+          "--type",
+          "server",
+          "--port",
+          String(port),
+        ],
+        {
+          env: {
+            ...process.env,
+            NODE_ENV: application.configuration.environment,
+          },
+          stdio: "inherit",
+        },
+      ),
+    );
+    node.childProcessKeepAlive(() =>
+      childProcess.spawn(
+        process.argv[0],
+        [
+          "--enable-source-maps",
+          process.argv[1],
+          ...application.commandLineArguments.positionals,
+          "--type",
+          "backgroundJob",
+          "--port",
+          String(port),
+        ],
+        {
+          env: {
+            ...process.env,
+            NODE_ENV: application.configuration.environment,
+          },
+          stdio: "inherit",
+        },
+      ),
+    );
+  }
+  node.childProcessKeepAlive(() =>
+    childProcess.spawn(
+      process.argv[0],
+      [
+        "--enable-source-maps",
+        process.argv[1],
+        ...application.commandLineArguments.positionals,
+        "--type",
+        "email",
+      ],
+      {
+        env: {
+          ...process.env,
+          NODE_ENV: application.configuration.environment,
+        },
+        stdio: "inherit",
+      },
+    ),
+  );
+  caddy.start({
+    ...application.configuration,
+    ...application.privateConfiguration,
+    untrustedStaticFilesRoots: [
+      `/files/* "${application.configuration.dataDirectory}"`,
+    ],
+  });
+}
+
 if (application.commandLineArguments.values.type === "backgroundJob")
   node.backgroundJob({ interval: 60 * 60 * 1000 }, async () => {
     for (const feedEntryEnclosure of application.database.all<{
@@ -1920,76 +1993,3 @@ if (application.commandLineArguments.values.type === "backgroundJob")
         else if (!response.ok) throw new Error(`Response: ${String(response)}`);
       },
     );
-
-if (application.commandLineArguments.values.type === undefined) {
-  for (const port of application.privateConfiguration.ports) {
-    node.childProcessKeepAlive(() =>
-      childProcess.spawn(
-        process.argv[0],
-        [
-          "--enable-source-maps",
-          process.argv[1],
-          ...application.commandLineArguments.positionals,
-          "--type",
-          "server",
-          "--port",
-          String(port),
-        ],
-        {
-          env: {
-            ...process.env,
-            NODE_ENV: application.configuration.environment,
-          },
-          stdio: "inherit",
-        },
-      ),
-    );
-    node.childProcessKeepAlive(() =>
-      childProcess.spawn(
-        process.argv[0],
-        [
-          "--enable-source-maps",
-          process.argv[1],
-          ...application.commandLineArguments.positionals,
-          "--type",
-          "backgroundJob",
-          "--port",
-          String(port),
-        ],
-        {
-          env: {
-            ...process.env,
-            NODE_ENV: application.configuration.environment,
-          },
-          stdio: "inherit",
-        },
-      ),
-    );
-  }
-  node.childProcessKeepAlive(() =>
-    childProcess.spawn(
-      process.argv[0],
-      [
-        "--enable-source-maps",
-        process.argv[1],
-        ...application.commandLineArguments.positionals,
-        "--type",
-        "email",
-      ],
-      {
-        env: {
-          ...process.env,
-          NODE_ENV: application.configuration.environment,
-        },
-        stdio: "inherit",
-      },
-    ),
-  );
-  caddy.start({
-    ...application.configuration,
-    ...application.privateConfiguration,
-    untrustedStaticFilesRoots: [
-      `/files/* "${application.configuration.dataDirectory}"`,
-    ],
-  });
-}
