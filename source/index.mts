@@ -312,6 +312,47 @@ application.database = await new Database(
   `,
 );
 
+if (application.commandLineArguments.values.type === "backgroundJob")
+  node.backgroundJob({ interval: 60 * 60 * 1000 }, async () => {
+    for (const feedEntryEnclosure of application.database.all<{
+      id: number;
+      publicId: string;
+    }>(
+      sql`
+        select
+          "feedEntryEnclosures"."id" as "id",
+          "feedEntryEnclosures"."publicId" as "publicId"
+        from "feedEntryEnclosures"
+        left join "feedEntryEnclosureLinks" on "feedEntryEnclosures"."id" = "feedEntryEnclosureLinks"."feedEntryEnclosure"
+        where "feedEntryEnclosureLinks"."id" is null;
+      `,
+    )) {
+      await fs.rm(
+        path.join(
+          application.configuration.dataDirectory,
+          "files",
+          feedEntryEnclosure.publicId,
+        ),
+        { recursive: true, force: true },
+      );
+      application.database.run(
+        sql`
+          delete from "feedEntryEnclosures" where "id" = ${feedEntryEnclosure.id};
+        `,
+      );
+    }
+    application.database.run(
+      sql`
+        delete from "feedVisualizations" where "createdAt" < ${new Date(Date.now() - 60 * 60 * 1000).toISOString()};
+      `,
+    );
+    application.database.run(
+      sql`
+        delete from "feedWebSubSubscriptions" where "createdAt" < ${new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString()};
+      `,
+    );
+  });
+
 if (application.commandLineArguments.values.type === undefined) {
   for (const port of application.privateConfiguration.ports) {
     node.childProcessKeepAlive(() =>
@@ -384,47 +425,6 @@ if (application.commandLineArguments.values.type === undefined) {
     ],
   });
 }
-
-if (application.commandLineArguments.values.type === "backgroundJob")
-  node.backgroundJob({ interval: 60 * 60 * 1000 }, async () => {
-    for (const feedEntryEnclosure of application.database.all<{
-      id: number;
-      publicId: string;
-    }>(
-      sql`
-        select
-          "feedEntryEnclosures"."id" as "id",
-          "feedEntryEnclosures"."publicId" as "publicId"
-        from "feedEntryEnclosures"
-        left join "feedEntryEnclosureLinks" on "feedEntryEnclosures"."id" = "feedEntryEnclosureLinks"."feedEntryEnclosure"
-        where "feedEntryEnclosureLinks"."id" is null;
-      `,
-    )) {
-      await fs.rm(
-        path.join(
-          application.configuration.dataDirectory,
-          "files",
-          feedEntryEnclosure.publicId,
-        ),
-        { recursive: true, force: true },
-      );
-      application.database.run(
-        sql`
-          delete from "feedEntryEnclosures" where "id" = ${feedEntryEnclosure.id};
-        `,
-      );
-    }
-    application.database.run(
-      sql`
-        delete from "feedVisualizations" where "createdAt" < ${new Date(Date.now() - 60 * 60 * 1000).toISOString()};
-      `,
-    );
-    application.database.run(
-      sql`
-        delete from "feedWebSubSubscriptions" where "createdAt" < ${new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString()};
-      `,
-    );
-  });
 
 application.layout = ({ request, response, head, body }) => {
   css`
